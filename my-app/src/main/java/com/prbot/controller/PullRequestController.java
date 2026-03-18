@@ -1,29 +1,16 @@
 package com.prbot.controller;
 
-import com.prbot.service.GitHubService;
-import org.springframework.http.ResponseEntity;
-
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-
 import com.prbot.model.ApiResponse;
 import com.prbot.model.PullRequestDTO;
-
-import java.util.List;
-
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-
 import com.prbot.service.AIReviewService;
 import com.prbot.service.GitHubService;
-import com.prbot.model.ApiResponse;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 import java.util.Map;
-import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/v1/pull-requests")
@@ -37,91 +24,77 @@ public class PullRequestController {
     public ResponseEntity<ApiResponse<List<PullRequestDTO>>> getPullRequests(
             @PathVariable String owner,
             @PathVariable String repo,
-            @RequestParam(defaultValue = "open") String state ) {
-                List<PullRequestDTO> pullRequests = gitHubService.getPullRequests(owner,repo,state);
-                return ResponseEntity.ok(ApiResponse.success(pullRequests, pullRequests.size()));
-    }
-     
-    @GetMapping("/{owner}/{repo}/{prNumber}")
-    public ResponseEntity<ApiResponse<List<PullRequestDTO>>> getPullRequestByNumber(
-            @PathVariable String owner,
-            @PathVariable String repo,
-            @PathVariable int prNumber) {
-                PullRequestDTO pullRequest = gitHubService.getPullRequestByNumber(owner,repo,prNumber);
-                return ResponseEntity.ok(ApiResponse.success(pullRequest));
+            @RequestParam(defaultValue = "open") String state) {
+        List<PullRequestDTO> pullRequests = gitHubService.getPullRequests(owner, repo, state);
+        return ResponseEntity.ok(ApiResponse.success(pullRequests, pullRequests.size()));
     }
 
     @GetMapping("/{owner}/{repo}/{prNumber}")
-    public ResponseEntity<ApiResponse<List<PullRequestDTO>>> getPullRequestByNumber(
+    public ResponseEntity<ApiResponse<PullRequestDTO>> getPullRequestByNumber(
             @PathVariable String owner,
             @PathVariable String repo,
             @PathVariable int prNumber) {
-                PullRequestDTO pullRequest = gitHubService.getPullRequestByNumber(owner,repo,prNumber);
-                return ResponseEntity.ok(ApiResponse.success(pullRequest));
+        PullRequestDTO pullRequest = gitHubService.getPullRequestByNumber(owner, repo, prNumber);
+        return ResponseEntity.ok(ApiResponse.success(pullRequest));
     }
 
     @GetMapping("/{owner}/{repo}/{prNumber}/diff")
-    public ResponseEntity<ApiResponse<List<PullRequestDTO>>> getPullRequestDiff(
+    public ResponseEntity<ApiResponse<String>> getPullRequestDiff(
             @PathVariable String owner,
             @PathVariable String repo,
             @PathVariable int prNumber) {
-                String diffUrl = gitHubService.getPullRequestDiff(owner,repo,prNumber);
-                return ResponseEntity.ok(ApiResponse.success(diffUrl));
+        String diffUrl = gitHubService.getPullRequestDiff(owner, repo, prNumber);
+        return ResponseEntity.ok(ApiResponse.success(diffUrl));
     }
 
     @PostMapping("/{owner}/{repo}/{prNumber}/comment")
-    public ResponseEntity<ApiResponse<List<PullRequestDTO>>> addCommentToPR(
+    public ResponseEntity<ApiResponse<String>> addCommentToPR(
             @PathVariable String owner,
             @PathVariable String repo,
             @PathVariable int prNumber,
             @RequestBody Map<String, String> body) {
-                String comment = body.get("comment");
-                gitHubService.addCommentToPullRequest(owner,repo,prNumber,comment);
-                return ResponseEntity.ok(ApiResponse.success("Comment successfully added to the PR:", prNumber));
+        String comment = body.get("comment");
+        gitHubService.addCommentToPullRequest(owner, repo, prNumber, comment);
+        return ResponseEntity.ok(ApiResponse.success("Comment successfully added to the PR " + prNumber));
     }
 
-    @GetMapping("/validate/{owner}/repo")
-    public ResponseEntity<ApiResponse<List<PullRequestDTO>>> validateRepository(
+    @GetMapping("/validate/{owner}/{repo}")
+    public ResponseEntity<ApiResponse<Boolean>> validateRepository(
             @PathVariable String owner,
             @PathVariable String repo) {
-                boolean isValid = gitHubService.validateRepository(owner,repo);
-                return ResponseEntity.ok(ApiResponse.success(isValid));
+        boolean isValid = gitHubService.validateRepository(owner, repo);
+        return ResponseEntity.ok(ApiResponse.success(isValid));
     }
 
-
     @PostMapping("/{owner}/{repo}/{prNumber}/ai-review")
-    public ResponseEntity<ApiResponse<List<PullRequestDTO>>> addCommentToPR(
+    public ResponseEntity<ApiResponse<String>> addAiReviewToPR(
             @PathVariable String owner,
             @PathVariable String repo,
             @PathVariable int prNumber) {
-                try {
-                    PullRequestDTO pr = gitHubService.getPullRequestByNumber(owner,repo,prNumber);
-                    String diff = gitHubService.getPullRequestDiff(owner,repo,prNumber);
-                    
-                    String aiReview = aiReviewService.analyzePullRequest (
-                        pr.getTitle(),
-                        diff,
-                        prNumber,
-                        owner + "/" + repo
-                    );
+        try {
+            PullRequestDTO pr = gitHubService.getPullRequestByNumber(owner, repo, prNumber);
+            String diff = gitHubService.getPullRequestDiff(owner, repo, prNumber);
 
-                    String fomattedCommment = String.format("""
-                            ## Ai-Powered Code Review
-                                %s
+            String aiReview = aiReviewService.analyzePullRequest(
+                    pr.getTitle(),
+                    diff,
+                    prNumber,
+                    owner + "/" + repo
+            );
 
-                                ---
-                                This review was automatically generated by AI. Please use your judgement when addressing these suggestions
-                            """, aiReview);
+            String formattedComment = String.format("""
+                    ## Ai-Powered Code Review
+                        %s
 
-                            gitHubService.addCommentToPullRequest(owner,repo,prNumber,fomattedCommment);
-                            return ResponseEntity.ok(ApiResponse.success("Ai review completed and posted to PR" + prNumber);
+                        ---
+                        This review was automatically generated by AI. Please use your judgement when addressing these suggestions
+                    """, aiReview);
 
-
-                } catch (Exception e) {
-                    return ResponseEntity.ok(ApiResponse.success("Ai review failed" + e.getMessage());
-                }
+            gitHubService.addCommentToPullRequest(owner, repo, prNumber, formattedComment);
+            return ResponseEntity.ok(ApiResponse.success("Ai review completed and posted to PR " + prNumber));
+        } catch (Exception e) {
+            log.error("AI review failed", e);
+            return ResponseEntity.ok(ApiResponse.success("Ai review failed: " + e.getMessage()));
+        }
     }
-
-    
-
 }

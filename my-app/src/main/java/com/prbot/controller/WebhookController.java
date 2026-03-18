@@ -1,85 +1,85 @@
 package com.prbot.controller;
 
-import org.springframework.http.ResponseEntity;
-import org.springframework.scheduling.annotation.Async;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
-
 import com.prbot.model.ApiResponse;
 import com.prbot.model.PullRequestDTO;
 import com.prbot.service.AIReviewService;
 import com.prbot.service.GitHubService;
 import lombok.RequiredArgsConstructor;
-import lombok.slf4j.Slf4j;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ResponseEntity;
+import org.springframework.scheduling.annotation.Async;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
+@RestController
+@RequestMapping("/api/v1/webhook")
+@RequiredArgsConstructor
+@Slf4j
 public class WebhookController {
     private final GitHubService gitHubService;
     private final AIReviewService aiReviewService;
 
     @PostMapping("/github")
     public ResponseEntity<ApiResponse<String>> handleGithubWebhook(
-        @RequestHeader(value = "X-Github-Event", required = false) String eventType;
-        @RequestBody Map<String, Object> payload) {
-            if(!"pull_request".equals(eventType)){
-                return ResponseEntity.ok(ApiResponse.success("Event ignord: " + eventType));
-            }
-            try {
-                String action = (String) payload.get("action");
-
-                if("opened".equals(action) || "synchronize".equals(action)){
-                    processWebhookAsync(payload);
-                    return ResponseEntity.ok(ApiResponse.success("PR review triggered asynchronously"));
-                }
-                return ResponseEntity.ok(ApiResponse.success("PR action processed: " + action));
-            } catch (Exception e) {
-                return ResponseEntity.ok(ApiResponse.success("Webhook processing failed: " + e.getMessage()));
-            }
+            @RequestHeader(value = "X-Github-Event", required = false) String eventType,
+            @RequestBody Map<String, Object> payload) {
+        if (!"pull_request".equals(eventType)) {
+            return ResponseEntity.ok(ApiResponse.success("Event ignored: " + eventType));
         }
+        try {
+            String action = (String) payload.get("action");
 
-        @Async
-        public CompletableFuture<Void> processWebhookAsync(Map<String, Object> payload) {
-            return CompletableFuture.runAsync(() -> {
-                try {
-                    Map<String, Object> prData = ( Map<String, Object>) payload.get("pull_request");
-                    Map<String, Object> repoData = ( Map<String, Object>) payload.get("repository");
-                    int prNumber = ((Number) prData.get("number")).intValue();
-                    String repoFullName = (String) prData.get("full_name");
-                    String[] parts = repoFullName.split("/");
-                    String owner = parts[0];
-                    String repo = parts[1];
+            if ("opened".equals(action) || "synchronize".equals(action)) {
+                processWebhookAsync(payload);
+                return ResponseEntity.ok(ApiResponse.success("PR review triggered asynchronously"));
+            }
+            return ResponseEntity.ok(ApiResponse.success("PR action processed: " + action));
+        } catch (Exception e) {
+            log.error("Webhook processing failed", e);
+            return ResponseEntity.ok(ApiResponse.success("Webhook processing failed: " + e.getMessage()));
+        }
+    }
 
-                    PullRequestDTO pr = gitHubService.getPullRequestByNumber(owner,repo,prNumber);
-                    String diff = gitHubService.getPullRequestByDiff(owner,repo,prNumber);
+    @Async
+    public CompletableFuture<Void> processWebhookAsync(Map<String, Object> payload) {
+        return CompletableFuture.runAsync(() -> {
+            try {
+                Map<String, Object> prData = (Map<String, Object>) payload.get("pull_request");
+                int prNumber = ((Number) prData.get("number")).intValue();
+                String repoFullName = (String) prData.get("full_name");
+                String[] parts = repoFullName.split("/");
+                String owner = parts[0];
+                String repo = parts[1];
 
-                    String aiReview = aiReviewService.analyzePullRequest(
+                PullRequestDTO pr = gitHubService.getPullRequestByNumber(owner, repo, prNumber);
+                String diff = gitHubService.getPullRequestDiff(owner, repo, prNumber);
+
+                String aiReview = aiReviewService.analyzePullRequest(
                         pr.getTitle(),
                         diff,
                         prNumber,
                         owner + "/" + repo
-                    );
+                );
 
-                     String fomattedCommment = String.format("""
-                            ## Ai-Powered Code Review
-                                %s
+                String formattedComment = String.format("""
+                        ## Ai-Powered Code Review
+                            %s
 
-                                ---
-                                This review was automatically generated by AI. Please use your judgement when addressing these suggestions
-                            """, aiReview);
+                            ---
+                            This review was automatically generated by AI. Please use your judgement when addressing these suggestions
+                        """, aiReview);
 
-                            gitHubService.addCommentToPullRequest(owner,repo,prNumber,fomattedCommment);
-                } catch (Exception e) {
-                        
-                }
-            });
-        }
+                gitHubService.addCommentToPullRequest(owner, repo, prNumber, formattedComment);
+            } catch (Exception e) {
+                log.error("Async webhook processing failed", e);
+            }
+        });
+    }
 
-        @GetMapping("/test")
-        public ResponseEntity<ApiResponse<String>> testWebhook() {
-            return ResponseEntity.ok(ApiResponse.success("Webhook endpoint is active");
-        }
+    @GetMapping("/test")
+    public ResponseEntity<ApiResponse<String>> testWebhook() {
+        return ResponseEntity.ok(ApiResponse.success("Webhook endpoint is active"));
+    }
 }

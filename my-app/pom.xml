@@ -30,9 +30,13 @@
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <version>1.18.36</version>
-            <optional>true</optional>
         </dependency>
         
+        <dependency>
+            <groupId>org.kohsuke</groupId>
+            <artifactId>github-api</artifactId>
+            <version>1.133</version>
+        </dependency>
     </dependencies>
 
     <build>

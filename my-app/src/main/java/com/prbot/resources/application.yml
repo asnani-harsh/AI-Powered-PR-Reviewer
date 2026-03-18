@@ -1,0 +1,28 @@
+spring:
+  application:
+    name: github-pr-service
+
+  task:
+    execution:
+      pool:
+        core-size: 5
+        max-size: 10
+        queue-capacity: 100
+
+server:
+  port: 8080
+
+github:
+  api:
+    url: https://api.github.com
+    token: ${GITHUB_TOKEN:}
+
+logging:
+  level:
+    org.springframework.web: INFO
+    com.prbot: DEBUG
+
+ai:
+  assisstant:
+      url: https://claude.ai/api/v1/complete
+      key: ${CLAUDE_API_KEY:}

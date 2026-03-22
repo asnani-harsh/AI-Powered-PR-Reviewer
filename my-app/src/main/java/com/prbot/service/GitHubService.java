@@ -20,18 +20,18 @@ import java.util.stream.Collectors;
 public class GitHubService {
     private final GitHub github;
 
-    public List<PullRequestDTO> getPullRequests(String owner, String repo, String state) {
-        try {
-            GHRepository repository = github.getRepository(owner + "/" + repo);
-            GHIssueState issueState = mapState(state);
-            List<GHPullRequest> pullRequests = repository.getPullRequests(issueState);
-            return pullRequests.stream()
-                    .map(this::mapToDTO)
-                    .collect(Collectors.toList());
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to fetch pull requests: " + e.getMessage(), e);
-        }
-    }
+    // public List<PullRequestDTO> getPullRequests(String owner, String repo, String state) {
+    //     try {
+    //         GHRepository repository = github.getRepository(owner + "/" + repo);
+    //         GHIssueState issueState = mapState(state);
+    //         List<GHPullRequest> pullRequests = repository.getPullRequests(issueState);
+    //         return pullRequests.stream()
+    //                 .map(this::mapToDTO)
+    //                 .collect(Collectors.toList());
+    //     } catch (Exception e) {
+    //         throw new RuntimeException("Failed to fetch pull requests: " + e.getMessage(), e);
+    //     }
+    // }
 
     public PullRequestDTO getPullRequestByNumber(String owner, String repo, int prNumber) {
         try {
